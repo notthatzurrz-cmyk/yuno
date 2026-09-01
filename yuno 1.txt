@@ -8,27 +8,36 @@ local KEY_FILE = "yuno_key.txt"
 
 print("[Yuno Key System]: Initializing Key System...")
 
+local function safeCall(fn, ...)
+    if type(fn) == "function" then
+        return pcall(fn, ...)
+    end
+    return false
+end
+
 local function openKeyUrl()
     print("[Yuno Key System]: Opening Platoboost Link: " .. KEY_LINK)
-    if setclipboard then pcall(setclipboard, KEY_LINK) end
-    if openurl then
-        pcall(openurl, KEY_LINK)
-    elseif syn and syn.open_url then
-        pcall(syn.open_url, KEY_LINK)
+    if type(setclipboard) == "function" then safeCall(setclipboard, KEY_LINK) end
+    if type(openurl) == "function" then
+        safeCall(openurl, KEY_LINK)
+    elseif type(syn) == "table" and type(syn.open_url) == "function" then
+        safeCall(syn.open_url, KEY_LINK)
     end
 end
 
 local function getYunoKey()
     if type(key) == "string" and key ~= "" then return key end
-    if type(getgenv().key) == "string" and getgenv().key ~= "" then return getgenv().key end
-    if type(_G.key) == "string" and _G.key ~= "" then return _G.key end
-    if type(getgenv().YunoKey) == "string" and getgenv().YunoKey ~= "" then return getgenv().YunoKey end
-    if isfile and isfile(KEY_FILE) then
-        local ok, saved = pcall(readfile, KEY_FILE)
-        if ok and type(saved) == "string" and saved ~= "" then
-            local cleanKey = saved:match("^%s*(.-)%s*$")
-            if cleanKey and #cleanKey > 0 then
-                return cleanKey
+    if type(getgenv) == "function" and type(getgenv().key) == "string" and getgenv().key ~= "" then return getgenv().key end
+    if type(_G) == "table" and type(_G.key) == "string" and _G.key ~= "" then return _G.key end
+    if type(getgenv) == "function" and type(getgenv().YunoKey) == "string" and getgenv().YunoKey ~= "" then return getgenv().YunoKey end
+    if type(isfile) == "function" and safeCall(isfile, KEY_FILE) then
+        if type(readfile) == "function" then
+            local ok, saved = safeCall(readfile, KEY_FILE)
+            if ok and type(saved) == "string" and saved ~= "" then
+                local cleanKey = saved:match("^%s*(.-)%s*$")
+                if cleanKey and #cleanKey > 0 then
+                    return cleanKey
+                end
             end
         end
     end
@@ -37,23 +46,39 @@ end
 
 local function getHWID()
     local hwid = nil
-    pcall(function()
-        if gethwid then
-            hwid = gethwid()
-        elseif get_hwid then
-            hwid = get_hwid()
-        else
+    if type(gethwid) == "function" then
+        local ok, res = safeCall(gethwid)
+        if ok and res then hwid = res end
+    elseif type(get_hwid) == "function" then
+        local ok, res = safeCall(get_hwid)
+        if ok and res then hwid = res end
+    end
+    if not hwid then
+        pcall(function()
             hwid = game:GetService("RbxAnalyticsService"):GetClientId()
-        end
-    end)
+        end)
+    end
     return hwid or "UNKNOWN_HWID"
 end
 
 local function httpRequest(options)
-    local req = (syn and syn.request) or (http and http.request) or request or http_request or (fluxus and fluxus.request)
+    local req = nil
+    if type(syn) == "table" and type(syn.request) == "function" then req = syn.request
+    elseif type(http) == "table" and type(http.request) == "function" then req = http.request
+    elseif type(request) == "function" then req = request
+    elseif type(http_request) == "function" then req = http_request
+    elseif type(fluxus) == "table" and type(fluxus.request) == "function" then req = fluxus.request
+    end
+    
     if req then
         local ok, res = pcall(req, options)
         if ok and res then return res end
+    end
+    if game and game.HttpGet then
+        local ok, body = pcall(game.HttpGet, game, options.Url)
+        if ok and body then
+            return { StatusCode = 200, Body = body }
+        end
     end
     return nil
 end
@@ -120,8 +145,10 @@ local function verifyPlatoboostKey(userKey)
 end
 
 local function getGuiParent()
-    local okHui, hui = pcall(function() return gethui and gethui() end)
-    if okHui and hui then return hui end
+    if type(gethui) == "function" then
+        local okHui, hui = pcall(gethui)
+        if okHui and hui then return hui end
+    end
     
     local lp = game:GetService("Players").LocalPlayer
     if lp then
@@ -273,7 +300,7 @@ local function showKeyGui(onSuccessCallback)
             if valid then
                 status.Text = "Key Verified! Loading Yuno..."
                 status.TextColor3 = Color3.fromRGB(90, 255, 120)
-                if writefile then pcall(writefile, KEY_FILE, userKey) end
+                if type(writefile) == "function" then safeCall(writefile, KEY_FILE, userKey) end
                 task.wait(1)
                 sg:Destroy()
                 onSuccessCallback()
@@ -302,8 +329,8 @@ if not isValid then
     end)
     repeat task.wait(0.5) until keyVerifiedSignal
 else
-    if writefile and providedKey then
-        pcall(writefile, KEY_FILE, providedKey)
+    if type(writefile) == "function" and providedKey then
+        safeCall(writefile, KEY_FILE, providedKey)
     end
     print("[Yuno Key System]: Key Verified! Loading Yuno Script...")
 end
