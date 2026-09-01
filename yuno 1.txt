@@ -1,8 +1,9 @@
 --------------------------------------------------------------------------------
 -- YUNO SCRIPT KEY SYSTEM (PLATOBOOST INTEGRATION)
 --------------------------------------------------------------------------------
+local SERVICE_ID = 30793
 local HMAC_KEY = "c5f0932b-3cdb-4dca-b2a3-5bdc958bca23"
-local KEY_LINK = "https://dash.platoboost.app/"
+local KEY_LINK = "https://gateway.platoboost.com/a?id=30793"
 local KEY_FILE = "yuno_key.txt"
 
 local function getYunoKey()
@@ -55,10 +56,11 @@ local function verifyPlatoboostKey(userKey)
     local HttpService = game:GetService("HttpService")
     
     local endpoints = {
+        "https://api.platoboost.com/public/whitelist/" .. tostring(SERVICE_ID) .. "/" .. hwid .. "?key=" .. userKey,
+        "https://api.platoboost.net/public/whitelist/" .. tostring(SERVICE_ID) .. "/" .. hwid .. "?key=" .. userKey,
+        "https://api.platoboost.app/v1/public/whitelist/" .. tostring(SERVICE_ID) .. "?key=" .. userKey .. "&hwid=" .. hwid,
         "https://api.platoboost.com/public/whitelist/" .. HMAC_KEY .. "/" .. hwid .. "?key=" .. userKey,
-        "https://api.platoboost.net/public/whitelist/" .. HMAC_KEY .. "/" .. hwid .. "?key=" .. userKey,
-        "https://api.platoboost.app/v1/public/whitelist/" .. HMAC_KEY .. "?key=" .. userKey .. "&hwid=" .. hwid,
-        "https://dash.platoboost.app/api1?key=" .. userKey .. "&hwid=" .. hwid .. "&public_key=" .. HMAC_KEY
+        "https://dash.platoboost.app/api1?id=" .. tostring(SERVICE_ID) .. "&key=" .. userKey .. "&hwid=" .. hwid .. "&public_key=" .. HMAC_KEY
     }
     
     for _, url in ipairs(endpoints) do
@@ -97,7 +99,7 @@ if not isValid then
     local msg = "[Yuno Key System]: Access Denied! " .. tostring(verifyMsg or "Invalid key")
     warn(msg)
     warn("[Yuno Key System]: Please get your key from " .. KEY_LINK .. " (Link copied to clipboard!)")
-    warn("[Yuno Key System]: Usage: key = \"YOUR_KEY\" loadstring(game:HttpGet(\"URL\"))()")
+    warn("[Yuno Key System]: Usage: key = "YOUR_KEY" loadstring(game:HttpGet("https://raw.githubusercontent.com/notthatzurrz-cmyk/yuno/refs/heads/main/yuno%201.txt"))()")
     pcall(function()
         game:GetService("StarterGui"):SetCore("SendNotification", {
             Title = "Yuno Key System",
@@ -2453,12 +2455,12 @@ if not res then warn("[Yuno] Runtime error in " .. name .. ": " .. tostring(ret)
 return ret
 end
 
-local Library = yunoLoad('https://raw.githubusercontent.com/lemonsharknyxmail-sketch/Yunoenhancments/refs/heads/main/Library.lua', 'Library', 'Window.AutoShow')
+local Library = yunoLoad('https://raw.githubusercontent.com/notthatzurrz-cmyk/yuno/refs/heads/main/yuno%20ui%20lib/Library.lua', 'Library', 'Window.AutoShow')
 assert(Library, "Failed to load Library.lua - check console/output for details")
 
 
-local ThemeManager = yunoLoad('https://raw.githubusercontent.com/lemonsharknyxmail-sketch/Yunoenhancments/refs/heads/main/ThemeManager.lua', 'ThemeManager', 'ApplyTheme')
-local SaveManager = yunoLoad('https://raw.githubusercontent.com/lemonsharknyxmail-sketch/Yunoenhancments/refs/heads/main/SaveManager.lua', 'SaveManager', 'IgnoreThemeSettings')
+local ThemeManager = yunoLoad('https://raw.githubusercontent.com/notthatzurrz-cmyk/yuno/refs/heads/main/yuno%20ui%20lib/ThemeManager.lua', 'ThemeManager', 'ApplyTheme')
+local SaveManager = yunoLoad('https://raw.githubusercontent.com/notthatzurrz-cmyk/yuno/refs/heads/main/yuno%20ui%20lib/SaveManager.lua', 'SaveManager', 'IgnoreThemeSettings')
 
 if not ThemeManager then
 warn("[Yuno] ThemeManager unavailable - using stub (themes disabled)")
