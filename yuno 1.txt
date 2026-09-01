@@ -1,12 +1,15 @@
 --------------------------------------------------------------------------------
--- YUNO SCRIPT KEY SYSTEM (PLATOBOOST INTEGRATION & AUTO-OPEN LINK)
+-- YUNO SCRIPT KEY SYSTEM (PLATOBOOST INTEGRATION & AUTO-REDEEM)
 --------------------------------------------------------------------------------
 local SERVICE_ID = 30793
 local HMAC_KEY = "c5f0932b-3cdb-4dca-b2a3-5bdc958bca23"
 local KEY_LINK = "https://gateway.platoboost.com/a?id=30793"
 local KEY_FILE = "yuno_key.txt"
 
+print("[Yuno Key System]: Initializing Key System...")
+
 local function openKeyUrl()
+    print("[Yuno Key System]: Opening Platoboost Link: " .. KEY_LINK)
     if setclipboard then pcall(setclipboard, KEY_LINK) end
     if openurl then
         pcall(openurl, KEY_LINK)
@@ -47,63 +50,99 @@ local function getHWID()
 end
 
 local function httpRequest(options)
-    local req = (syn and syn.request) or (http and http.request) or request or http_request
+    local req = (syn and syn.request) or (http and http.request) or request or http_request or (fluxus and fluxus.request)
     if req then
-        return req(options)
-    elseif game and game.HttpGet then
-        local ok, body = pcall(game.HttpGet, game, options.Url)
-        if ok then
-            return { StatusCode = 200, Body = body }
-        end
+        local ok, res = pcall(req, options)
+        if ok and res then return res end
     end
     return nil
 end
 
 local function verifyPlatoboostKey(userKey)
     if not userKey or userKey == "" then return false, "No key provided." end
+    print("[Yuno Key System]: Checking key '" .. tostring(userKey) .. "' with Platoboost...")
     local hwid = getHWID()
     local HttpService = game:GetService("HttpService")
     
-    local endpoints = {
-        "https://api.platoboost.com/public/whitelist/" .. tostring(SERVICE_ID) .. "/" .. hwid .. "?key=" .. userKey,
-        "https://api.platoboost.net/public/whitelist/" .. tostring(SERVICE_ID) .. "/" .. hwid .. "?key=" .. userKey,
-        "https://api.platoboost.app/v1/public/whitelist/" .. tostring(SERVICE_ID) .. "?key=" .. userKey .. "&hwid=" .. hwid,
-        "https://api.platoboost.com/public/whitelist/" .. HMAC_KEY .. "/" .. hwid .. "?key=" .. userKey,
-        "https://dash.platoboost.app/api1?id=" .. tostring(SERVICE_ID) .. "&key=" .. userKey .. "&hwid=" .. hwid .. "&public_key=" .. HMAC_KEY
+    local jsonBody = HttpService:JSONEncode({
+        identifier = hwid,
+        key = userKey
+    })
+    
+    -- 1. Try POST to Platoboost Redeem API
+    local redeemUrls = {
+        "https://api.platoboost.net/public/redeem/" .. tostring(SERVICE_ID),
+        "https://api.platoboost.app/public/redeem/" .. tostring(SERVICE_ID),
+        "https://api.platoboost.com/public/redeem/" .. tostring(SERVICE_ID)
     }
     
-    for _, url in ipairs(endpoints) do
-        local success, res = pcall(function()
-            return httpRequest({ Url = url, Method = "GET" })
-        end)
-        
-        if success and res and (res.StatusCode == 200 or res.Status == 200) and res.Body then
-            local decodeSuccess, data = pcall(function()
-                return HttpService:JSONDecode(res.Body)
-            end)
+    for _, url in ipairs(redeemUrls) do
+        local res = httpRequest({
+            Url = url,
+            Method = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body = jsonBody
+        })
+        if res and (res.StatusCode == 200 or res.Status == 200) and res.Body then
+            local decodeSuccess, data = pcall(function() return HttpService:JSONDecode(res.Body) end)
             if decodeSuccess and type(data) == "table" then
-                if data.valid == true or data.success == true or data.whitelisted == true or data.status == "success" or data.status == 200 then
+                if data.success == true and data.data and data.data.valid == true then
                     return true, "Key validated successfully!"
-                elseif data.message then
-                    return false, tostring(data.message)
-                end
-            elseif res.Body:lower():find("valid") or res.Body:lower():find("true") or res.Body:lower():find("success") then
-                if not res.Body:lower():find("invalid") and not res.Body:lower():find("false") then
+                elseif data.valid == true or data.success == true then
                     return true, "Key validated successfully!"
                 end
             end
         end
     end
     
-    return false, "Invalid or unverified key."
+    -- 2. Try GET Whitelist API
+    local whitelistUrls = {
+        "https://api.platoboost.net/public/whitelist/" .. tostring(SERVICE_ID) .. "?identifier=" .. hwid .. "&key=" .. userKey,
+        "https://api.platoboost.app/public/whitelist/" .. tostring(SERVICE_ID) .. "?identifier=" .. hwid .. "&key=" .. userKey,
+        "https://api.platoboost.com/public/whitelist/" .. tostring(SERVICE_ID) .. "?identifier=" .. hwid .. "&key=" .. userKey
+    }
+    
+    for _, url in ipairs(whitelistUrls) do
+        local res = httpRequest({ Url = url, Method = "GET" })
+        if res and (res.StatusCode == 200 or res.Status == 200) and res.Body then
+            local decodeSuccess, data = pcall(function() return HttpService:JSONDecode(res.Body) end)
+            if decodeSuccess and type(data) == "table" then
+                if data.success == true and data.data and data.data.valid == true then
+                    return true, "Key validated successfully!"
+                elseif data.valid == true then
+                    return true, "Key validated successfully!"
+                end
+            end
+        end
+    end
+    
+    return false, "Invalid key or unverified with Platoboost."
+end
+
+local function getGuiParent()
+    local okHui, hui = pcall(function() return gethui and gethui() end)
+    if okHui and hui then return hui end
+    
+    local lp = game:GetService("Players").LocalPlayer
+    if lp then
+        local pg = lp:FindFirstChildOfClass("PlayerGui") or lp:WaitForChild("PlayerGui", 3)
+        if pg then return pg end
+    end
+    
+    local okCore, cg = pcall(function() return game:GetService("CoreGui") end)
+    if okCore and cg then return cg end
+    
+    return nil
 end
 
 local function showKeyGui(onSuccessCallback)
     openKeyUrl()
     
-    local coreGui = game:GetService("CoreGui")
-    local playerGui = game:GetService("Players").LocalPlayer and game:GetService("Players").LocalPlayer:FindFirstChildOfClass("PlayerGui")
-    local targetParent = gethui and gethui() or coreGui or playerGui
+    local targetParent = getGuiParent()
+    if not targetParent then
+        warn("[Yuno Key System]: Could not locate GUI parent! Key link copied to clipboard: " .. KEY_LINK)
+        return
+    end
     
     local oldGui = targetParent:FindFirstChild("YunoKeySystemGui")
     if oldGui then oldGui:Destroy() end
@@ -111,15 +150,18 @@ local function showKeyGui(onSuccessCallback)
     local sg = Instance.new("ScreenGui")
     sg.Name = "YunoKeySystemGui"
     sg.ResetOnSpawn = false
-    sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    sg.Enabled = true
+    sg.DisplayOrder = 999999
     sg.Parent = targetParent
     
     local main = Instance.new("Frame")
     main.Name = "MainFrame"
-    main.Size = UDim2.new(0, 360, 0, 240)
-    main.Position = UDim2.new(0.5, -180, 0.5, -120)
-    main.BackgroundColor3 = Color3.fromRGB(24, 24, 34)
+    main.Size = UDim2.new(0, 380, 0, 250)
+    main.Position = UDim2.new(0.5, -190, 0.5, -125)
+    main.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
     main.BorderSizePixel = 0
+    main.Active = true
+    main.Draggable = true
     main.Parent = sg
     
     local corner = Instance.new("UICorner")
@@ -132,7 +174,7 @@ local function showKeyGui(onSuccessCallback)
     stroke.Parent = main
     
     local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, 0, 0, 40)
+    title.Size = UDim2.new(1, 0, 0, 42)
     title.BackgroundTransparency = 1
     title.Text = "YUNO KEY SYSTEM"
     title.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -141,10 +183,10 @@ local function showKeyGui(onSuccessCallback)
     title.Parent = main
     
     local sub = Instance.new("TextLabel")
-    sub.Position = UDim2.new(0, 15, 0, 38)
-    sub.Size = UDim2.new(1, -30, 0, 25)
+    sub.Position = UDim2.new(0, 15, 0, 40)
+    sub.Size = UDim2.new(1, -30, 0, 28)
     sub.BackgroundTransparency = 1
-    sub.Text = "Browser opened to Platoboost! Paste your key below:"
+    sub.Text = "Platoboost link opened! Complete checkpoints and paste key:"
     sub.TextColor3 = Color3.fromRGB(180, 180, 200)
     sub.TextSize = 12
     sub.Font = Enum.Font.Gotham
@@ -152,13 +194,13 @@ local function showKeyGui(onSuccessCallback)
     sub.Parent = main
     
     local input = Instance.new("TextBox")
-    input.Position = UDim2.new(0, 20, 0, 75)
-    input.Size = UDim2.new(1, -40, 0, 40)
-    input.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
+    input.Position = UDim2.new(0, 20, 0, 78)
+    input.Size = UDim2.new(1, -40, 0, 42)
+    input.BackgroundColor3 = Color3.fromRGB(32, 32, 48)
     input.TextColor3 = Color3.fromRGB(255, 255, 255)
     input.PlaceholderText = "Paste Platoboost Key Here..."
-    input.PlaceholderColor3 = Color3.fromRGB(120, 120, 140)
-    input.TextSize = 14
+    input.PlaceholderColor3 = Color3.fromRGB(130, 130, 150)
+    input.TextSize = 13
     input.Font = Enum.Font.Gotham
     input.ClearTextOnFocus = false
     input.Parent = main
@@ -168,10 +210,10 @@ local function showKeyGui(onSuccessCallback)
     inputCorner.Parent = input
     
     local status = Instance.new("TextLabel")
-    status.Position = UDim2.new(0, 20, 0, 120)
-    status.Size = UDim2.new(1, -40, 0, 25)
+    status.Position = UDim2.new(0, 20, 0, 126)
+    status.Size = UDim2.new(1, -40, 0, 26)
     status.BackgroundTransparency = 1
-    status.Text = "Link copied & opened! Complete checkpoints to get key."
+    status.Text = "Link copied & opened! Get your key from Platoboost."
     status.TextColor3 = Color3.fromRGB(108, 92, 231)
     status.TextSize = 11
     status.Font = Enum.Font.Gotham
@@ -179,8 +221,8 @@ local function showKeyGui(onSuccessCallback)
     status.Parent = main
     
     local btnGetKey = Instance.new("TextButton")
-    btnGetKey.Position = UDim2.new(0, 20, 0, 155)
-    btnGetKey.Size = UDim2.new(0.45, -5, 0, 40)
+    btnGetKey.Position = UDim2.new(0, 20, 0, 162)
+    btnGetKey.Size = UDim2.new(0.46, -5, 0, 42)
     btnGetKey.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
     btnGetKey.Text = "Get Key Link"
     btnGetKey.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -193,8 +235,8 @@ local function showKeyGui(onSuccessCallback)
     btnGetCorner.Parent = btnGetKey
     
     local btnSubmit = Instance.new("TextButton")
-    btnSubmit.Position = UDim2.new(0.55, 5, 0, 155)
-    btnSubmit.Size = UDim2.new(0.45, -5, 0, 40)
+    btnSubmit.Position = UDim2.new(0.54, 5, 0, 162)
+    btnSubmit.Size = UDim2.new(0.46, -5, 0, 42)
     btnSubmit.BackgroundColor3 = Color3.fromRGB(108, 92, 231)
     btnSubmit.Text = "Submit Key"
     btnSubmit.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -253,6 +295,7 @@ local providedKey = getYunoKey()
 local isValid, verifyMsg = verifyPlatoboostKey(providedKey)
 
 if not isValid then
+    warn("[Yuno Key System]: Key invalid or not provided! Displaying Key UI...")
     local keyVerifiedSignal = false
     showKeyGui(function()
         keyVerifiedSignal = true
