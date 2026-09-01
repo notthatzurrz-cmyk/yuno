@@ -1,10 +1,19 @@
 --------------------------------------------------------------------------------
--- YUNO SCRIPT KEY SYSTEM (PLATOBOOST INTEGRATION)
+-- YUNO SCRIPT KEY SYSTEM (PLATOBOOST INTEGRATION & AUTO-OPEN LINK)
 --------------------------------------------------------------------------------
 local SERVICE_ID = 30793
 local HMAC_KEY = "c5f0932b-3cdb-4dca-b2a3-5bdc958bca23"
 local KEY_LINK = "https://gateway.platoboost.com/a?id=30793"
 local KEY_FILE = "yuno_key.txt"
+
+local function openKeyUrl()
+    if setclipboard then pcall(setclipboard, KEY_LINK) end
+    if openurl then
+        pcall(openurl, KEY_LINK)
+    elseif syn and syn.open_url then
+        pcall(syn.open_url, KEY_LINK)
+    end
+end
 
 local function getYunoKey()
     if type(key) == "string" and key ~= "" then return key end
@@ -89,25 +98,166 @@ local function verifyPlatoboostKey(userKey)
     return false, "Invalid or unverified key."
 end
 
+local function showKeyGui(onSuccessCallback)
+    openKeyUrl()
+    
+    local coreGui = game:GetService("CoreGui")
+    local playerGui = game:GetService("Players").LocalPlayer and game:GetService("Players").LocalPlayer:FindFirstChildOfClass("PlayerGui")
+    local targetParent = gethui and gethui() or coreGui or playerGui
+    
+    local oldGui = targetParent:FindFirstChild("YunoKeySystemGui")
+    if oldGui then oldGui:Destroy() end
+    
+    local sg = Instance.new("ScreenGui")
+    sg.Name = "YunoKeySystemGui"
+    sg.ResetOnSpawn = false
+    sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    sg.Parent = targetParent
+    
+    local main = Instance.new("Frame")
+    main.Name = "MainFrame"
+    main.Size = UDim2.new(0, 360, 0, 240)
+    main.Position = UDim2.new(0.5, -180, 0.5, -120)
+    main.BackgroundColor3 = Color3.fromRGB(24, 24, 34)
+    main.BorderSizePixel = 0
+    main.Parent = sg
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 10)
+    corner.Parent = main
+    
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(108, 92, 231)
+    stroke.Thickness = 2
+    stroke.Parent = main
+    
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0, 40)
+    title.BackgroundTransparency = 1
+    title.Text = "YUNO KEY SYSTEM"
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.TextSize = 18
+    title.Font = Enum.Font.GothamBold
+    title.Parent = main
+    
+    local sub = Instance.new("TextLabel")
+    sub.Position = UDim2.new(0, 15, 0, 38)
+    sub.Size = UDim2.new(1, -30, 0, 25)
+    sub.BackgroundTransparency = 1
+    sub.Text = "Browser opened to Platoboost! Paste your key below:"
+    sub.TextColor3 = Color3.fromRGB(180, 180, 200)
+    sub.TextSize = 12
+    sub.Font = Enum.Font.Gotham
+    sub.TextWrapped = true
+    sub.Parent = main
+    
+    local input = Instance.new("TextBox")
+    input.Position = UDim2.new(0, 20, 0, 75)
+    input.Size = UDim2.new(1, -40, 0, 40)
+    input.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
+    input.TextColor3 = Color3.fromRGB(255, 255, 255)
+    input.PlaceholderText = "Paste Platoboost Key Here..."
+    input.PlaceholderColor3 = Color3.fromRGB(120, 120, 140)
+    input.TextSize = 14
+    input.Font = Enum.Font.Gotham
+    input.ClearTextOnFocus = false
+    input.Parent = main
+    
+    local inputCorner = Instance.new("UICorner")
+    inputCorner.CornerRadius = UDim.new(0, 6)
+    inputCorner.Parent = input
+    
+    local status = Instance.new("TextLabel")
+    status.Position = UDim2.new(0, 20, 0, 120)
+    status.Size = UDim2.new(1, -40, 0, 25)
+    status.BackgroundTransparency = 1
+    status.Text = "Link copied & opened! Complete checkpoints to get key."
+    status.TextColor3 = Color3.fromRGB(108, 92, 231)
+    status.TextSize = 11
+    status.Font = Enum.Font.Gotham
+    status.TextWrapped = true
+    status.Parent = main
+    
+    local btnGetKey = Instance.new("TextButton")
+    btnGetKey.Position = UDim2.new(0, 20, 0, 155)
+    btnGetKey.Size = UDim2.new(0.45, -5, 0, 40)
+    btnGetKey.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+    btnGetKey.Text = "Get Key Link"
+    btnGetKey.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btnGetKey.TextSize = 13
+    btnGetKey.Font = Enum.Font.GothamBold
+    btnGetKey.Parent = main
+    
+    local btnGetCorner = Instance.new("UICorner")
+    btnGetCorner.CornerRadius = UDim.new(0, 6)
+    btnGetCorner.Parent = btnGetKey
+    
+    local btnSubmit = Instance.new("TextButton")
+    btnSubmit.Position = UDim2.new(0.55, 5, 0, 155)
+    btnSubmit.Size = UDim2.new(0.45, -5, 0, 40)
+    btnSubmit.BackgroundColor3 = Color3.fromRGB(108, 92, 231)
+    btnSubmit.Text = "Submit Key"
+    btnSubmit.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btnSubmit.TextSize = 13
+    btnSubmit.Font = Enum.Font.GothamBold
+    btnSubmit.Parent = main
+    
+    local btnSubCorner = Instance.new("UICorner")
+    btnSubCorner.CornerRadius = UDim.new(0, 6)
+    btnSubCorner.Parent = btnSubmit
+    
+    btnGetKey.MouseButton1Click:Connect(function()
+        openKeyUrl()
+        status.Text = "Opened in browser & copied to clipboard!"
+        status.TextColor3 = Color3.fromRGB(108, 92, 231)
+    end)
+    
+    local isVerifying = false
+    local function submitKey()
+        if isVerifying then return end
+        local userKey = input.Text:match("^%s*(.-)%s*$")
+        if not userKey or userKey == "" then
+            status.Text = "Please paste a key first!"
+            status.TextColor3 = Color3.fromRGB(255, 90, 90)
+            return
+        end
+        
+        isVerifying = true
+        status.Text = "Verifying key with Platoboost..."
+        status.TextColor3 = Color3.fromRGB(255, 200, 80)
+        
+        task.spawn(function()
+            local valid, msg = verifyPlatoboostKey(userKey)
+            if valid then
+                status.Text = "Key Verified! Loading Yuno..."
+                status.TextColor3 = Color3.fromRGB(90, 255, 120)
+                if writefile then pcall(writefile, KEY_FILE, userKey) end
+                task.wait(1)
+                sg:Destroy()
+                onSuccessCallback()
+            else
+                status.Text = "Invalid Key: " .. tostring(msg or "Failed verification")
+                status.TextColor3 = Color3.fromRGB(255, 90, 90)
+                isVerifying = false
+            end
+        end)
+    end
+    
+    btnSubmit.MouseButton1Click:Connect(submitKey)
+    input.FocusLost:Connect(function(enterPressed)
+        if enterPressed then submitKey() end
+    end)
+end
+
 local providedKey = getYunoKey()
 local isValid, verifyMsg = verifyPlatoboostKey(providedKey)
 
 if not isValid then
-    if setclipboard then
-        pcall(setclipboard, KEY_LINK)
-    end
-    local msg = "[Yuno Key System]: Access Denied! " .. tostring(verifyMsg or "Invalid key")
-    warn(msg)
-    warn("[Yuno Key System]: Please get your key from " .. KEY_LINK .. " (Link copied to clipboard!)")
-    warn("[Yuno Key System]: Usage: key = "YOUR_KEY" loadstring(game:HttpGet("https://raw.githubusercontent.com/notthatzurrz-cmyk/yuno/refs/heads/main/yuno%201.txt"))()")
-    pcall(function()
-        game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "Yuno Key System",
-            Text = "Invalid Key! Key link copied to clipboard.",
-            Duration = 7
-        })
+    local keyVerifiedSignal = false
+    showKeyGui(function()
+        keyVerifiedSignal = true
     end)
-    return
+    repeat task.wait(0.5) until keyVerifiedSignal
 else
     if writefile and providedKey then
         pcall(writefile, KEY_FILE, providedKey)
